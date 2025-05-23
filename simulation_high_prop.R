@@ -1,3 +1,4 @@
+# Load libraries
 library(rbmi)
 library(rstan)
 library(dplyr)
@@ -6,8 +7,8 @@ library(mmrm)
 #_____________________________________________
 # simulate complete data set
 #______________________________________________
-#set.seed(423456)
 
+# Initialize parameters
 samples <- 5000
 sigma_k0 <- seq(.0, 1.5, .1) 
 iter <- 1
@@ -16,8 +17,6 @@ j2r_se <- mmrm_se <- cir_se <- cr_se <- 0
 
 j2r_constant_k0  <- cir_constant_k1 <- j2r_constant_k0_se  <- cir_constant_k1_se  <- 0
 
-
-prop_check <- 0
 causal_k_mean0  <- causal_k_mean05 <- causal_k_mean1 <- matrix(,nrow = iter, ncol = length(sigma_k0))
 causal_k_mean0_se  <- causal_k_mean05_se <- causal_k_mean1_se <- matrix(,nrow = iter, ncol = length(sigma_k0))
 causal_k_mean0_true <- causal_k_mean1_true <- causal_k_mean05_true <- matrix(,nrow = iter, ncol = length(sigma_k0))
@@ -137,7 +136,7 @@ for (j in 1:iter) {
            r = ifelse(max(first_offtrt_visit)==5 & min(ontrt)==1,0,first_offtrt_visit)) %>%
     ungroup()
   
-  # Genarate discontinue patterns
+ # Genarate discontinue patterns
  # data_discont$r <- if_else(data_discont$first_offtrt_visit==5 & 
                              # data_discont$ontrt==1,0,data_discont$first_offtrt_visit)
   
