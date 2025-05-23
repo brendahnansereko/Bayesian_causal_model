@@ -1,3 +1,4 @@
+# Load libraries
 library(rbmi)
 library(rstan)
 library(dplyr)
@@ -8,6 +9,7 @@ library(mmrm)
 #______________________________________________
 #set.seed(423456)
 
+# Initialize parameters
 samples <- 5000
 sigma_k0 <- seq(.0, 1.5, .1) 
 iter <- 1
