@@ -231,6 +231,24 @@ betas$causal_k_mean05_tranctednorm <-  ((betas$V2 + betas$V12)*prop_sampled [,1]
 causal_k_mean05_tranctednorm = cbind(apply(as.data.frame(betas$causal_k_mean05_tranctednorm),2,mean),apply(as.data.frame(betas$causal_k_mean05_tranctednorm),2,sd),
                     apply(as.data.frame(betas$causal_k_mean05_tranctednorm),2,quantile,c(0.025)),apply(as.data.frame(betas$causal_k_mean05_tranctednorm),2,quantile,c(0.975)))
 
+
+#----------------Weak Beta prior distribution for k_0-------------------------------
+k <- rbeta(samples,1,1)
+
+betas$causal_k_mean05_beta<- (betas$V2 + betas$V12)*prop_sampled [,1] + k*((betas$V2)*prop_sampled [,2]) +  k*((betas$V2 + betas$V10)*prop_sampled [,3]) + k*((betas$V2 + betas$V11)*prop_sampled[,4])
+
+causal_k_mean05_beta = cbind(apply(as.data.frame(betas$causal_k_mean05_beta),2,mean),apply(as.data.frame(betas$causal_k_mean05_beta),2,sd),
+                                     apply(as.data.frame(betas$causal_k_mean05_beta),2,quantile,c(0.025)),apply(as.data.frame(betas$causal_k_mean05_beta),2,quantile,c(0.975)))
+
+
+#----------------strong Beta prior distribution for k_0-------------------------------
+k <- rbeta(samples,10,10)
+
+betas$causal_k_mean05_beta_2<- (betas$V2 + betas$V12)*prop_sampled [,1] + k*((betas$V2)*prop_sampled [,2]) +  k*((betas$V2 + betas$V10)*prop_sampled [,3]) + k*((betas$V2 + betas$V11)*prop_sampled[,4])
+
+causal_k_mean05_beta_2 = cbind(apply(as.data.frame(betas$causal_k_mean05_beta_2),2,mean),apply(as.data.frame(betas$causal_k_mean05_beta_2),2,sd),
+                             apply(as.data.frame(betas$causal_k_mean05_beta_2),2,quantile,c(0.025)),apply(as.data.frame(betas$causal_k_mean05_beta_2),2,quantile,c(0.975)))
+
 #Summarise results
 res <- subset(betas, select = c(j2r,cir,mar))
 sumRes = cbind(apply(res,2,mean),apply(res,2,sd),apply(res,2,quantile,c(0.025)),apply(res,2,quantile,c(0.975)))
@@ -238,7 +256,7 @@ sumRes = cbind(apply(res,2,mean),apply(res,2,sd),apply(res,2,quantile,c(0.025)),
 
 res_norm <- as.data.frame(cbind(causal_k_mean0,causal_k_mean0_se,causal_k_mean05,causal_k_mean05_se,causal_k_mean1,causal_k_mean1_se))
 
-res_beta <- as.data.frame(cbind(causal_k_mean0_beta,causal_k_mean0_beta_se,causal_k_mean1_beta,causal_k_mean1_beta_se))
-res_beta_2 <- as.data.frame(cbind(causal_k_mean05_beta,causal_k_mean05_beta_se))
+#res_beta <- as.data.frame(cbind(causal_k_mean0_beta,causal_k_mean0_beta_se,causal_k_mean1_beta,causal_k_mean1_beta_se))
+#res_beta_2 <- as.data.frame(cbind(causal_k_mean05_beta,causal_k_mean05_beta_se))
 
 sumRes

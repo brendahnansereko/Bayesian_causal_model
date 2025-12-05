@@ -1,4 +1,3 @@
-# Load libraries
 library(rbmi)
 library(rstan)
 library(dplyr)
@@ -7,8 +6,8 @@ library(mmrm)
 #_____________________________________________
 # simulate complete data set
 #______________________________________________
+#set.seed(423456)
 
-# Initialize parameters
 samples <- 5000
 sigma_k0 <- seq(.0, 1.5, .1) 
 iter <- 1
@@ -17,13 +16,15 @@ j2r_se <- mmrm_se <- cir_se <- cr_se <- 0
 
 j2r_constant_k0  <- cir_constant_k1 <- j2r_constant_k0_se  <- cir_constant_k1_se  <- 0
 
+
+prop_check <- 0
 causal_k_mean0  <- causal_k_mean05 <- causal_k_mean1 <- matrix(,nrow = iter, ncol = length(sigma_k0))
 causal_k_mean0_se  <- causal_k_mean05_se <- causal_k_mean1_se <- matrix(,nrow = iter, ncol = length(sigma_k0))
 causal_k_mean0_true <- causal_k_mean1_true <- causal_k_mean05_true <- matrix(,nrow = iter, ncol = length(sigma_k0))
 
 for (j in 1:iter) {
   n <- 100
- 
+  
   # Visits
   visits  <-  c(0, 4, 8, 14, 20, 26)
   n_visit <-  length(visits)
@@ -38,7 +39,7 @@ for (j in 1:iter) {
   
   
   # create Sigma
-
+  
   # Spatial power correlation matrix - corresponds to AR(1) for equidistant visits
   rho      <- 0.8
   exponent <- abs(matrix(visits, nrow = n_visit, ncol = n_visit, byrow = TRUE) - visits) / (visits[2] - visits[1])
@@ -96,17 +97,17 @@ for (j in 1:iter) {
   data$trt <- ifelse(data$group=="Control",0,1)
   
   data$groupx <- ifelse(data$group=="Control","Control","Intervention")
-
+  
   # Beta parameter for logistic regression modeling of DAR trt discont
   beta_discont_dar <- data.frame(groupx = rep(c("Control", "Intervention"), each = 5),
-                                visitn = rep(1:5, times = 2),
-                                beta_main = rep(-13, times = 10),
-                                beta_prev_resp = c(1.42, 1.14, 1.33, 1.51, 1.46, 
-                                                   1.42, 1.14, 1.47, 1.48, 1.40), 
-                                beta_current_resp = rep(0, times = 10),
-                                beta_baseline = c(0, 0.3, 0.1, 0.05, 0, 
-                                                  0, 0.3, 0.1, 0.05, 0), 
-                                stringsAsFactors = FALSE)
+                                 visitn = rep(1:5, times = 2),
+                                 beta_main = rep(-13, times = 10),
+                                 beta_prev_resp = c(1.42, 1.14, 1.33, 1.51, 1.46, 
+                                                    1.42, 1.14, 1.47, 1.48, 1.40), 
+                                 beta_current_resp = rep(0, times = 10),
+                                 beta_baseline = c(0, 0.3, 0.1, 0.05, 0, 
+                                                   0, 0.3, 0.1, 0.05, 0), 
+                                 stringsAsFactors = FALSE)
   
   
   #_____________________________________________
@@ -136,9 +137,9 @@ for (j in 1:iter) {
            r = ifelse(max(first_offtrt_visit)==5 & min(ontrt)==1,0,first_offtrt_visit)) %>%
     ungroup()
   
- # Genarate discontinue patterns
- # data_discont$r <- if_else(data_discont$first_offtrt_visit==5 & 
-                             # data_discont$ontrt==1,0,data_discont$first_offtrt_visit)
+  # Genarate discontinue patterns
+  # data_discont$r <- if_else(data_discont$first_offtrt_visit==5 & 
+  # data_discont$ontrt==1,0,data_discont$first_offtrt_visit)
   
   # generate missing values after discontinuation
   data_discont$y_mar <- if_else(data_discont$ontrt==1 ,data_discont$response_ontrt,NA)
@@ -187,9 +188,9 @@ for (j in 1:iter) {
       group = "group",
       covariates = c("y_bl*visit", "group*visit")),
     method = method_bayes(control=control_bayes(warmup=200,thin=1),
-      n_samples = 5000,
-      same_cov = TRUE
-      #seed = 484381136
+                          n_samples = 5000,
+                          same_cov = TRUE
+                          #seed = 484381136
     ))
   
   # now thin the draws for the imputation methods
@@ -227,160 +228,140 @@ for (j in 1:iter) {
   j2r_mean[j] <- jrMIResults$pars$trt_5$est
   j2r_se[j] <- jrMIResults$pars$trt_5$se
   
-#____________________________________________________
-#        RBI imputation analysis - CIR
-#____________________________________________________
-
-ice_info_cir <- ice_info_jr %>%
-  mutate(strategy = ifelse(strategy == "JR", "CIR", strategy))
-
-#set.seed(837263)
-cirImps <- impute(thinnedDraws,
-                 references = c("Intervention" = "Control", "Control" = "Control"),
-                 update_strategy = ice_info_cir)
-
-cirMIFits <- analyse(
-  imputations = cirImps,
-  vars = ancovaVars
-)
-cirMIResults <- pool(cirMIFits)
-cirMIResults
-cir_mean[j] <- cirMIResults$pars$trt_5$est
-cir_se[j] <- cirMIResults$pars$trt_5$se
-#____________________________________________________
-#        RBI imputation analysis - CR
-#____________________________________________________
-
-ice_info_cr <- ice_info %>%
-  mutate(strategy = ifelse(strategy == "MAR", "CR", strategy))
-
-#set.seed(837263)
-crImps <- impute(thinnedDraws,
-                  references = c("Intervention" = "Control", "Control" = "Control"),
-                  update_strategy = ice_info_cr)
-
-crMIFits <- analyse(
-  imputations = crImps,
-  vars = ancovaVars
-)
-crMIResults <- pool(crMIFits)
-crMIResults
-cr_mean[j] <- crMIResults$pars$trt_5$est
-cr_se[j] <- crMIResults$pars$trt_5$se
-
-
-#____________________________________________________
-#        MRMM
-#____________________________________________________
-mmrmFit <- mmrm(y_mar~y_bl*visit+group*visit+us(visit|id), data=data,
-                reml=TRUE, method = "Kenward-Roger")
-
-# Obtain estimates
-t_lastvisit <- numeric(length(mmrmFit$beta_est))
-
-#set elements corresponding to main effect of drug and visit 7 interaction to 1
-t_lastvisit[match("groupIntervention", names(mmrmFit$beta_est))] <- 1
-t_lastvisit[match("visit5:groupIntervention", names(mmrmFit$beta_est))] <- 1
-mmrm <- df_1d(mmrmFit, t_lastvisit)
-mmrm
-
-mmrm_mean[j] <- mmrm$est
-mmrm_se[j] <- mmrm$se
-
-#______________________________________
-#  Bayesian Approach Analysis by Liu
-#______________________________________
-
-# Obtain the Bayesian MMRM paramters from the rbmi package
-betas <- as.data.frame(do.call(rbind, do.call(rbind, bayesDraws[["samples"]])[,3]))
-
-# Obtain proportions for ICE at each visit
-a <- c(0,2,3,4,5)
-
-data_x <- subset(data,data$group=="Intervention")
-
-n_prop <- (table(factor(data_x$r, levels=a)))/5
-
-
-# Draws for proportions
-prop_sampled <- rBeta2009::rdirichlet(samples, (rep(1,5)) + n_prop)
-
-#J2R
-betas$j2r_constant_k0_values <- (betas$V2 + betas$V15)*prop_sampled [,1]
-j2r_constant_k0[j] <- mean(betas$j2r_constant_k0_values)
-j2r_constant_k0_se[j] <- sd(betas$j2r_constant_k0_values)
-
-#CIR
-betas$cir_constant_k1_values <- (betas$V2 + betas$V15)*prop_sampled [,1] + ((betas$V2)*prop_sampled [,2]) + 
-  ((betas$V2 + betas$V12)*prop_sampled [,3]) + ((betas$V2 + betas$V13)*prop_sampled[,4]) +
-  ((betas$V2 + betas$V14)*prop_sampled[,5])
-cir_constant_k1[j] <- mean(betas$cir_constant_k1_values)
-cir_constant_k1_se[j] <- sd(betas$cir_constant_k1_values)
-
-
-
-#__________________________________________
-#  Casual  Analysis
-#______________________________________
-
-for (i in 1:length(sigma_k0)) {
-  #J2R
-  k <- rnorm(samples,0,sigma_k0[i])
-  betas$causal_k_mean0 <-  (betas$V2 + betas$V15)*prop_sampled [,1] + k*((betas$V2)*prop_sampled [,2]) + 
-                          k*((betas$V2 + betas$V12)*prop_sampled [,3]) + k*((betas$V2 + betas$V13)*prop_sampled[,4]) +
-                          k*((betas$V2 + betas$V14)*prop_sampled[,5])
+  #____________________________________________________
+  #        RBI imputation analysis - CIR
+  #____________________________________________________
   
-  causal_k_mean0[j,i] <- mean(betas$causal_k_mean0)
-  causal_k_mean0_se[j,i] <- sd(betas$causal_k_mean0)
+  ice_info_cir <- ice_info_jr %>%
+    mutate(strategy = ifelse(strategy == "JR", "CIR", strategy))
+  
+  #set.seed(837263)
+  cirImps <- impute(thinnedDraws,
+                    references = c("Intervention" = "Control", "Control" = "Control"),
+                    update_strategy = ice_info_cir)
+  
+  cirMIFits <- analyse(
+    imputations = cirImps,
+    vars = ancovaVars
+  )
+  cirMIResults <- pool(cirMIFits)
+  cirMIResults
+  cir_mean[j] <- cirMIResults$pars$trt_5$est
+  cir_se[j] <- cirMIResults$pars$trt_5$se
+
+  
+  #____________________________________________________
+  #        MRMM
+  #____________________________________________________
+  mmrmFit <- mmrm(y_mar~y_bl*visit+group*visit+us(visit|id), data=data,
+                  reml=TRUE, method = "Kenward-Roger")
+  
+  # Obtain estimates
+  t_lastvisit <- numeric(length(mmrmFit$beta_est))
+  
+  #set elements corresponding to main effect of drug and visit 7 interaction to 1
+  t_lastvisit[match("groupIntervention", names(mmrmFit$beta_est))] <- 1
+  t_lastvisit[match("visit5:groupIntervention", names(mmrmFit$beta_est))] <- 1
+  mmrm <- df_1d(mmrmFit, t_lastvisit)
+  mmrm
+  
+  mmrm_mean[j] <- mmrm$est
+  mmrm_se[j] <- mmrm$se
+  
+  #______________________________________
+  #  Bayesian Approach Analysis by Liu
+  #______________________________________
+  
+  # Obtain the Bayesian MMRM paramters from the rbmi package
+  betas <- as.data.frame(do.call(rbind, do.call(rbind, bayesDraws[["samples"]])[,3]))
+  
+  # Obtain proportions for ICE at each visit
+  a <- c(0,2,3,4,5)
+  
+  data_x <- subset(data,data$group=="Intervention")
+  
+  n_prop <- (table(factor(data_x$r, levels=a)))/5
+  
+  
+  # Draws for proportions
+  prop_sampled <- rBeta2009::rdirichlet(samples, (rep(1,5)) + n_prop)
+  
+  #J2R
+  betas$j2r_constant_k0_values <- (betas$V2 + betas$V15)*prop_sampled [,1]
+  j2r_constant_k0[j] <- mean(betas$j2r_constant_k0_values)
+  j2r_constant_k0_se[j] <- sd(betas$j2r_constant_k0_values)
   
   #CIR
-  k_2 <- rnorm(samples,1,sigma_k0[i])
-  betas$causal_k_mean1 <-  (betas$V2 + betas$V15)*prop_sampled [,1] + k_2*((betas$V2)*prop_sampled [,2]) + 
-    k_2*((betas$V2 + betas$V12)*prop_sampled [,3]) + k_2*((betas$V2 + betas$V13)*prop_sampled[,4]) +
-    k_2*((betas$V2 + betas$V14)*prop_sampled[,5])
-  
-  causal_k_mean1[j,i] <- mean(betas$causal_k_mean1)
-  causal_k_mean1_se[j,i] <- sd(betas$causal_k_mean1)
+  betas$cir_constant_k1_values <- (betas$V2 + betas$V15)*prop_sampled [,1] + ((betas$V2)*prop_sampled [,2]) + 
+    ((betas$V2 + betas$V12)*prop_sampled [,3]) + ((betas$V2 + betas$V13)*prop_sampled[,4]) +
+    ((betas$V2 + betas$V14)*prop_sampled[,5])
+  cir_constant_k1[j] <- mean(betas$cir_constant_k1_values)
+  cir_constant_k1_se[j] <- sd(betas$cir_constant_k1_values)
   
   
-  k_3 <- rnorm(samples,0.5,sigma_k0[i])
-  betas$causal_k_mean05 <-  (betas$V2 + betas$V15)*prop_sampled [,1] + k_3*((betas$V2)*prop_sampled [,2]) + 
-    k_3*((betas$V2 + betas$V12)*prop_sampled [,3]) + k_3*((betas$V2 + betas$V13)*prop_sampled[,4]) +
-    k_3*((betas$V2 + betas$V14)*prop_sampled[,5])
   
-  causal_k_mean05[j,i] <- mean(betas$causal_k_mean05)
-  causal_k_mean05_se[j,i] <- sd(betas$causal_k_mean05)
+  #__________________________________________
+  #  Casual  Analysis
+  #______________________________________
   
-
-
-  #TRue values
-  prop_true <- c(0.53117, 0.16526, 0.17739, 0.09409, 0.03209) 
+  for (i in 1:length(sigma_k0)) {
+    #J2R
+    k <- rnorm(samples,0,sigma_k0[i])
+    betas$causal_k_mean0 <-  (betas$V2 + betas$V15)*prop_sampled [,1] + k*((betas$V2)*prop_sampled [,2]) + 
+      k*((betas$V2 + betas$V12)*prop_sampled [,3]) + k*((betas$V2 + betas$V13)*prop_sampled[,4]) +
+      k*((betas$V2 + betas$V14)*prop_sampled[,5])
+    
+    causal_k_mean0[j,i] <- mean(betas$causal_k_mean0)
+    causal_k_mean0_se[j,i] <- sd(betas$causal_k_mean0)
+    
+    #CIR
+    k_2 <- rnorm(samples,1,sigma_k0[i])
+    betas$causal_k_mean1 <-  (betas$V2 + betas$V15)*prop_sampled [,1] + k_2*((betas$V2)*prop_sampled [,2]) + 
+      k_2*((betas$V2 + betas$V12)*prop_sampled [,3]) + k_2*((betas$V2 + betas$V13)*prop_sampled[,4]) +
+      k_2*((betas$V2 + betas$V14)*prop_sampled[,5])
+    
+    causal_k_mean1[j,i] <- mean(betas$causal_k_mean1)
+    causal_k_mean1_se[j,i] <- sd(betas$causal_k_mean1)
+    
+    
+    k_3 <- rnorm(samples,0.5,sigma_k0[i])
+    betas$causal_k_mean05 <-  (betas$V2 + betas$V15)*prop_sampled [,1] + k_3*((betas$V2)*prop_sampled [,2]) + 
+      k_3*((betas$V2 + betas$V12)*prop_sampled [,3]) + k_3*((betas$V2 + betas$V13)*prop_sampled[,4]) +
+      k_3*((betas$V2 + betas$V14)*prop_sampled[,5])
+    
+    causal_k_mean05[j,i] <- mean(betas$causal_k_mean05)
+    causal_k_mean05_se[j,i] <- sd(betas$causal_k_mean05)
+    
+    
+    
+    #TRue values
+    prop_true <- c(0.53117, 0.16526, 0.17739, 0.09409, 0.03209) 
+    
+    
+    
+    # Draw for J2R true value
+    k_true_1 <- rnorm(1,0,sigma_k0[i])
+    causal_k_mean0_true[j,i] <-  ((muT[6] - muC[6])*prop_true [1]) + k_true_1*((muT[2] - muC[2])*prop_true [2]) + k_true_1*((muT[3] - muC[3])*prop_true [3])
+    + k_true_1*((muT[4] - muC[4])*prop_true [4])  + k_true_1*((muT[5] - muC[5])*prop_true [5])
+    
+    
+    # Draw for CIR true value
+    k_true_2 <- rnorm(1,1,sigma_k0[i])
+    causal_k_mean1_true[j,i] <- ((muT[6] - muC[6])*prop_true [1]) + k_true_2*((muT[2] - muC[2])*prop_true [2]) + k_true_2*((muT[3] - muC[3])*prop_true [3])
+    + k_true_2*((muT[4] - muC[4])*prop_true [4])  + k_true_2*((muT[5] - muC[5])*prop_true [5])
+    
+    
+    # Draw for CIR true value
+    k_true_3 <- rnorm(1,1,sigma_k0[i])
+    causal_k_mean05_true[j,i] <- ((muT[6] - muC[6])*prop_true [1]) + k_true_3*((muT[2] - muC[2])*prop_true [2]) + k_true_3*((muT[3] - muC[3])*prop_true [3])
+    + k_true_3*((muT[4] - muC[4])*prop_true [4])  + k_true_3*((muT[5] - muC[5])*prop_true [5])
+    
+  }
   
-  
-
-  # Draw for J2R true value
-  k_true_1 <- rnorm(1,0,sigma_k0[i])
-  causal_k_mean0_true[j,i] <-  ((muT[6] - muC[6])*prop_true [1]) + k_true_1*((muT[2] - muC[2])*prop_true [2]) + k_true_1*((muT[3] - muC[3])*prop_true [3])
-  + k_true_1*((muT[4] - muC[4])*prop_true [4])  + k_true_1*((muT[5] - muC[5])*prop_true [5])
-  
-  
-  # Draw for CIR true value
-  k_true_2 <- rnorm(1,1,sigma_k0[i])
-  causal_k_mean1_true[j,i] <- ((muT[6] - muC[6])*prop_true [1]) + k_true_2*((muT[2] - muC[2])*prop_true [2]) + k_true_2*((muT[3] - muC[3])*prop_true [3])
-  + k_true_2*((muT[4] - muC[4])*prop_true [4])  + k_true_2*((muT[5] - muC[5])*prop_true [5])
-  
-  
-  # Draw for CIR true value
-  k_true_3 <- rnorm(1,1,sigma_k0[i])
-  causal_k_mean05_true[j,i] <- ((muT[6] - muC[6])*prop_true [1]) + k_true_3*((muT[2] - muC[2])*prop_true [2]) + k_true_3*((muT[3] - muC[3])*prop_true [3])
-  + k_true_3*((muT[4] - muC[4])*prop_true [4])  + k_true_3*((muT[5] - muC[5])*prop_true [5])
-  
-}
-
 }
 
 #Data sets
-res <- as.data.frame( cbind(j2r_constant_k0,j2r_b,cir_constant_k1,cir_b,j2r_constant_k0_se,j2r_b_se,cir_constant_k1_se,cir_b_se,
+res <- as.data.frame( cbind(j2r_constant_k0,cir_constant_k1,j2r_constant_k0_se,cir_constant_k1_se,
                             mmrm_mean,mmrm_se,cir_mean,cir_se,j2r_mean,j2r_se))
 
 causal_k_mean0 <- as.data.frame(causal_k_mean0)
@@ -408,4 +389,3 @@ write.csv(causal_k_mean1_se,"/home/lsh1901704/causal_k_mean1_se_high")
 write.csv(causal_k_mean0_true,"/home/lsh1901704/causal_k_mean0_true_high")
 write.csv(causal_k_mean1_true,"/home/lsh1901704/causal_k_mean1_true_high")
 write.csv(causal_k_mean05_true,"/home/lsh1901704/causal_k_mean05_true_high")
-
